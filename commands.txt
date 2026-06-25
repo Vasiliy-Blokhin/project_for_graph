@@ -1,0 +1,37 @@
+Получения списка сумм ISSUECAPITALIZATION по секторам:
+---------------------------------------------
+MATCH (s:Share)
+WHERE s.ISSUECAPITALIZATION IS NOT NULL
+RETURN s.SECTOR AS sector,
+       sum(s.ISSUECAPITALIZATION) AS total_capitalization
+ORDER BY total_capitalization DESC
+---------------------------------------------
+
+Получения списка сумм TRENDISSUECAPITALIZATION по секторам:
+---------------------------------------------
+MATCH (s:Share)
+WHERE s.TRENDISSUECAPITALIZATION IS NOT NULL
+RETURN s.SECTOR AS sector,
+       sum(s.TRENDISSUECAPITALIZATION) AS total_trendcapitalization
+ORDER BY total_trendcapitalization DESC
+---------------------------------------------
+
+Получение отношения WAPRICE к MARKETPRICE по акциям:
+---------------------------------------------
+MATCH (s:Share)
+WHERE s.WAPRICE IS NOT NULL AND s.MARKETPRICE IS NOT NULL
+RETURN s.secid AS secid,
+       toFloat(s.WAPRICE) / toFloat(s.MARKETPRICE) AS waprice_to_marketprice
+ORDER BY waprice_to_marketprice DESC
+---------------------------------------------
+
+Получения списка сумм ISSUECAPITALIZATION и TRENDISSUECAPITALIZATION по секторам:
+---------------------------------------------
+MATCH (s:Share)
+WHERE s.ISSUECAPITALIZATION IS NOT NULL
+   OR s.TRENDISSUECAPITALIZATION IS NOT NULL
+RETURN s.SECTOR AS sector,
+    sum(s.ISSUECAPITALIZATION) AS issue_capitalization,
+    sum(s.TRENDISSUECAPITALIZATION) AS trendissue_capitalization
+ORDER BY issue_capitalization DESC
+---------------------------------------------
