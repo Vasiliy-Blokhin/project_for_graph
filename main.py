@@ -1,65 +1,47 @@
-import ast
 from time import sleep
 
-from module import GetAndPrepareData as gapd
+from module import DataProcessor as dp
 from neo4j_worker import NEO4J
 from settings import logger, STOP_TRADING
 
 
 if __name__ == '__main__':
-    
     NEO4J.start_work()
-    
+
     while True:
         try:
-            # Подготавливаем данные
             NEO4J.clear_shares()
-            data = gapd.data_prepare()
+            data = dp.fetch_and_prepare_data()
             if data[0]['TRADINGSESSION'] == STOP_TRADING:
-                data = gapd.data_prepare(is_offline=True)
-            
-            share_param_list = []
+                data = dp.fetch_and_prepare_data(is_offline=True)
+
             for share in data:
                 node = share['SECID']
                 for rel, val in share.items():
-                    share_param_list.append((node, rel, val))
-            
-            for share_param in share_param_list:
-                node, rel, val = share_param
-                
-                # Заполняем БД полученными данными
-                NEO4J.execute_query(
-                    """
-                    MERGE (s:Share {secid: $node})
-                    SET s[$rel] = $val,
-                        s.updated_at = datetime()
-                    RETURN s
-                    """,
-                    node=node,
-                    rel=rel,
-                    val=val,
-                    database_="neo4j"
-                )
-            
-            # Получение данных для статистики
-            trand_and_issuecapital = NEO4J.execute_query("""
+                    NEO4J.execute_query(
+                        """
+                        MERGE (s:Share {secid: $node})
+                        SET s[$rel] = $val,
+                            s.updated_at = datetime()
+                        RETURN s
+                        """,
+                        node=node,
+                        rel=rel,
+                        val=val,
+                        database_="neo4j"
+                    )
+
+            stats = NEO4J.execute_query("""
                 MATCH (s:Share)
                 WHERE s.ISSUECAPITALIZATION IS NOT NULL
-                OR s.TRENDISSUECAPITALIZATION IS NOT NULL
+                   OR s.TRENDISSUECAPITALIZATION IS NOT NULL
                 RETURN s.SECTOR AS sector,
                     sum(s.ISSUECAPITALIZATION) AS issue_capitalization,
                     sum(s.TRENDISSUECAPITALIZATION) AS trendissue_capitalization
                 ORDER BY issue_capitalization DESC
             """)
 
-            logger.info(gapd.statistic_capitalization_message(
-                trand_and_issuecapital.records
-            ))
-
-            # Расчет вероятностей
-            probabilities = gapd.calculate_growth_probability(data=data)
-            
-            # Обновление данных в БД
+            probabilities = dp.calculate_all_probabilities(data=data)
             for item in probabilities:
                 share = item['share']
                 NEO4J.execute_query(
@@ -78,10 +60,23 @@ if __name__ == '__main__':
                     database_="neo4j"
                 )
 
-            # Вывод результата в терминал
-            gapd.print_full_probability_report(is_offline=True, top_n=5)
+            result_data = ''
+            result_data += dp.format_capitalization_report(stats.records)
+            result_data += dp.print_probability_report(is_offline=True, top_n=5)
+            open('results/output.txt', 'w', encoding='utf-8').write(result_data)
+            logger.info('Статистика сохранена')
+            result = NEO4J.execute_query("""
+                MATCH (s:Share)
+                WHERE s.SECTOR IS NOT NULL AND s.PROBABILITY IS NOT NULL
+                RETURN s.SECTOR AS sector,
+                    collect({secid: s.secid, prob: s.PROBABILITY}) AS stocks
+            """)
+
+            sectors_data = {row["sector"]: row["stocks"] for row in result.records}
+            dp.build_probability_graph(sectors_data, "results/moex_probability_graph.html")
+
         except Exception as e:
             logger.error(e)
         finally:
-            logger.info('data update')
+            logger.info('Конец итерации')
             sleep(600)
