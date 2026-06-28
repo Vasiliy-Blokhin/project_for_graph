@@ -151,7 +151,7 @@ class DataProcessor:
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(html)
 
-        print(f"Сохранено: {output_file} | Узлов: {len(net.nodes)}, Рёбер: {len(net.edges)}")
+        logger.info(f"Сохранено: {output_file} | Узлов: {len(net.nodes)}, Рёбер: {len(net.edges)}")
         return net
 
 
