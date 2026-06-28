@@ -79,131 +79,11 @@ class NEO4J:
     @classmethod
     def _find_or_install_java(cls):
         """Ищет Java 17; если не находит — пытается установить автоматически"""
-
-        # Сначала попробуем найти существующую
-        java_home = cls._find_java_windows()
-        if java_home:
-            return java_home
-
-        logger.warning("Java 17 не найдена. Пытаемся установить автоматически...")
-
-        # Попытка 1: winget (Windows Package Manager)
-        java_home = cls._install_java_via_winget()
-        if java_home:
-            return java_home
-
-        # Попытка 2: скачать portable JDK (Eclipse Adoptium)
+        
         java_home = cls._install_java_portable()
         if java_home:
             return java_home
 
-        # Попытка 3: Chocolatey
-        java_home = cls._install_java_via_choco()
-        if java_home:
-            return java_home
-
-        return None
-
-    @staticmethod
-    def _find_java_windows():
-        """Ищет Java 17 на Windows в типичных местах и через where/java"""
-
-        # 1. Проверяем JAVA_HOME
-        java_home = os.environ.get("JAVA_HOME", "")
-        if java_home and os.path.exists(os.path.join(java_home, "bin", "java.exe")):
-            # Проверяем версию
-            try:
-                ver = subprocess.run(
-                    [os.path.join(java_home, "bin", "java.exe"), "-version"],
-                    capture_output=True, text=True, timeout=10
-                )
-                if "17." in ver.stderr or "17." in ver.stdout:
-                    return java_home
-            except Exception:
-                pass
-
-        # 2. Проверяем через where java (если java в PATH)
-        try:
-            result = subprocess.run(
-                ["where", "java"], 
-                capture_output=True, 
-                text=True, 
-                timeout=10
-            )
-            if result.returncode == 0:
-                for java_path in result.stdout.strip().splitlines():
-                    java_path = java_path.strip()
-                    if not java_path:
-                        continue
-                    # Проверяем версию
-                    ver = subprocess.run(
-                        [java_path, "-version"], 
-                        capture_output=True, 
-                        text=True, 
-                        timeout=10
-                    )
-                    if "17." in ver.stderr or "17." in ver.stdout:
-                        return os.path.dirname(os.path.dirname(java_path))
-        except Exception:
-            pass
-
-        # 3. Поиск по типичным путям
-        possible_paths = [
-            os.path.expandvars(r"%PROGRAMFILES%\Java\jdk-17*"),
-            os.path.expandvars(r"%PROGRAMFILES(X86)%\Java\jdk-17*"),
-            r"C:\Program Files\Java\jdk-17*",
-            r"C:\Program Files (x86)\Java\jdk-17*",
-            r"C:\Program Files\Eclipse Adoptium\jdk-17*",
-            r"C:\Program Files\Amazon Corretto\jdk17*",
-            r"C:\Program Files\Microsoft\jdk-17*",
-            r"C:\java\jdk-17*",
-            r"D:\java\jdk-17*",
-            r".\jdk-17*",  # portable в текущей папке
-        ]
-
-        for path_pattern in possible_paths:
-            if not path_pattern:
-                continue
-            matches = glob.glob(path_pattern)
-            for match in matches:
-                if os.path.exists(os.path.join(match, "bin", "java.exe")):
-                    return match
-
-        return None
-
-    @classmethod
-    def _install_java_via_winget(cls):
-        """Установка Java 17 через winget (Windows 10/11)"""
-        try:
-            # Проверяем, есть ли winget
-            result = subprocess.run(
-                ["winget", "--version"], 
-                capture_output=True, 
-                text=True, 
-                timeout=10
-            )
-            if result.returncode != 0:
-                return None
-
-            logger.info("Устанавливаем Eclipse Temurin JDK 17 через winget...")
-            subprocess.run(
-                [
-                    "winget", "install", "--id", "EclipseAdoptium.Temurin.17.JDK",
-                    "--accept-source-agreements", "--accept-package-agreements",
-                    "-e", "--silent"
-                ],
-                check=True,
-                timeout=300
-            )
-
-            # Перечитываем переменные среды (winget обычно обновляет PATH)
-            # Или ищем заново
-            time.sleep(2)
-            return cls._find_java_windows()
-
-        except Exception as e:
-            logger.warning(f"winget установка не удалась: {e}")
-            return None
 
     @classmethod
     def _install_java_portable(cls):
@@ -212,7 +92,6 @@ class NEO4J:
         extract_dir = "jdk-17"
         
         try:
-            # Если папка уже существует — пробуем использовать её напрямую
             if os.path.exists(extract_dir):
                 logger.info(f"Найдена существующая папка {extract_dir}, проверяем...")
                 subdirs = [d for d in os.listdir(extract_dir) 
@@ -225,7 +104,6 @@ class NEO4J:
             
             logger.info("Скачиваем portable JDK 17 (Eclipse Temurin)...")
 
-            # Скачиваем zip-версию JDK 17
             jdk_url = (
                 "https://github.com/adoptium/temurin17-binaries/releases/"
                 "download/jdk-17.0.9%2B9.1/"
@@ -236,13 +114,11 @@ class NEO4J:
 
             logger.info("Распаковываем JDK...")
             
-            # Безопасное удаление с обработкой прав доступа
             if os.path.exists(extract_dir):
                 cls._safe_rmtree(extract_dir)
             
             shutil.unpack_archive(zip_file, extract_dir)
 
-            # Находим папку внутри (обычно jdk-17.0.9+9)
             subdirs = [d for d in os.listdir(extract_dir) 
                       if os.path.isdir(os.path.join(extract_dir, d))]
             if subdirs:
@@ -258,7 +134,6 @@ class NEO4J:
 
         except Exception as e:
             logger.warning(f"Portable JDK установка не удалась: {e}")
-            # Чистим за собой при ошибке
             if os.path.exists(zip_file):
                 try:
                     os.remove(zip_file)
@@ -270,7 +145,6 @@ class NEO4J:
     def _safe_rmtree(path):
         """Безопасное удаление директории с обработкой ошибок доступа"""
         def onerror(func, path, exc_info):
-            # Если нет прав — пробуем изменить атрибуты и повторить
             if not os.access(path, os.W_OK):
                 try:
                     os.chmod(path, stat.S_IWUSR)
@@ -284,7 +158,6 @@ class NEO4J:
             shutil.rmtree(path, onerror=onerror)
         except Exception as e:
             logger.warning(f"Не удалось очистить {path}: {e}")
-            # Если совсем не удалось — переименуем и проигнорируем
             try:
                 new_name = path + "_old_" + str(int(time.time()))
                 os.rename(path, new_name)
@@ -292,36 +165,7 @@ class NEO4J:
             except Exception:
                 pass
 
-    @classmethod
-    def _install_java_via_choco(cls):
-        """Установка Java 17 через Chocolatey"""
-        try:
-            result = subprocess.run(
-                ["choco", "--version"], 
-                capture_output=True, 
-                text=True, 
-                timeout=10
-            )
-            if result.returncode != 0:
-                return None
-
-            logger.info("Устанавливаем Java 17 через Chocolatey...")
-            subprocess.run(
-                ["choco", "install", "openjdk17", "-y"],
-                check=True,
-                timeout=300
-            )
-
-            time.sleep(2)
-            return cls._find_java_windows()
-
-        except Exception as e:
-            logger.warning(f"Chocolatey установка не удалась: {e}")
-            return None
-
-    # ───────────────────────────────────────────────
     # Конфигурация Neo4j
-    # ───────────────────────────────────────────────
     @staticmethod
     def _configure_neo4j(NEO4J_DIR):
         """Отключает аутентификацию Neo4j"""
@@ -333,12 +177,10 @@ class NEO4J:
         with open(conf, 'r', encoding='utf-8') as f:
             txt = f.read()
 
-        # Отключаем аутентификацию
         txt = txt.replace(
             "#dbms.security.auth_enabled=false", 
             "dbms.security.auth_enabled=false"
         )
-        # На случай если уже раскомментировано со значением true
         txt = txt.replace(
             "dbms.security.auth_enabled=true", 
             "dbms.security.auth_enabled=false"
@@ -349,33 +191,22 @@ class NEO4J:
 
         logger.info("Аутентификация Neo4j отключена")
 
-    # ───────────────────────────────────────────────
     # Запуск Neo4j
-    # ───────────────────────────────────────────────
     @classmethod
     def _start_neo4j(cls, NEO4J_DIR, JAVA17):
         """Запускает Neo4j: сначала как службу, если не получится — как процесс"""
         neo4j_bin = os.path.join(NEO4J_DIR, "bin", "neo4j.bat")
         env = {**os.environ, "JAVA_HOME": JAVA17}
+        
+        logger.info("Запускаем Neo4j...")
+        cls._process = subprocess.Popen(
+            [neo4j_bin, "console"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+        )
 
-        # Пробуем запустить как службу Windows
-        try:
-            logger.info("Пробуем запустить Neo4j как службу...")
-            subprocess.run([neo4j_bin, "install-service"], env=env, check=True, timeout=30)
-            subprocess.run([neo4j_bin, "start"], env=env, check=True, timeout=30)
-            logger.info("Neo4j запущен как служба")
-        except Exception:
-            # Если служба не работает — запускаем как консольный процесс
-            logger.info("Запускаем Neo4j как консольное приложение...")
-            cls._process = subprocess.Popen(
-                [neo4j_bin, "console"],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-            )
-
-        # Ждём открытия порта 7687
         logger.info("Ожидаем запуск Neo4j (порт 7687)...")
         for i in range(120):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -389,9 +220,7 @@ class NEO4J:
 
         raise TimeoutError("Neo4j не запустился в течение 120 секунд")
 
-    # ───────────────────────────────────────────────
     # Подключение драйвера
-    # ───────────────────────────────────────────────
     @classmethod
     def _connect_driver(cls):
         """Создаёт и проверяет подключение к Neo4j"""
@@ -400,9 +229,7 @@ class NEO4J:
         result = cls.driver.execute_query("RETURN 'Neo4j ' + '5.26' AS hello")
         logger.info(f"Подключено: {result.records[0]['hello']}")
 
-    # ───────────────────────────────────────────────
     # Вспомогательные методы
-    # ───────────────────────────────────────────────
     @staticmethod
     def _download_file(url, filepath):
         """Скачивает файл с отображением прогресса"""
