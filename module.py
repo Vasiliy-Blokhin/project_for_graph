@@ -86,7 +86,6 @@ class DataProcessor:
     @staticmethod
     def format_capitalization_report(rows):
         total_cap = sum(r['issue_capitalization'] for r in rows)
-        total_trend = sum(r['trendissue_capitalization'] for r in rows)
 
         lines = ["\n--- Соотношение капитализаций по секторам ---"]
         for r in rows:
@@ -134,7 +133,7 @@ class DataProcessor:
         )
 
         for sector, stocks in sectors_data.items():
-            net.add_node(sector, label=sector, color="#4A90D9", size=30, shape="dot")
+            net.add_node(sector, label=sector, color="#4A90D9", size=40, shape="dot")
             for s in stocks:
                 secid = s["secid"]
                 prob = s["prob"]
@@ -144,7 +143,15 @@ class DataProcessor:
                     color = "#E74C3C"
                 else:
                     color = "#F1C40F"
-                net.add_node(secid, label=secid, title=f"{secid}: {prob}%", color=color, size=15, shape="dot")
+
+                net.add_node(
+                    secid,
+                    label=secid,
+                    title=f"{secid}: {prob}%",
+                    color=color,
+                    size=10,
+                    shape="dot"
+                )
                 net.add_edge(sector, secid)
 
         html = net.generate_html()

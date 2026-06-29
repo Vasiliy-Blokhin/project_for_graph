@@ -1,8 +1,5 @@
-from os import getenv, getcwd
 import sys
 import logging
-
-from dotenv import load_dotenv
 
 
 handler = logging.StreamHandler(sys.stdout)
@@ -10,8 +7,6 @@ formatter = logging.Formatter(
     '%(name)s, %(funcName)s, %(asctime)s, %(levelname)s - %(message)s.'
 )
 handler.setFormatter(formatter)
-
-load_dotenv()
 
 NEEDFUL = [
     'SECID', 'SHORTNAME', 'PREVPRICE', 'PREVWAPRICE', 'PREVDATE',

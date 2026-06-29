@@ -61,8 +61,7 @@ if __name__ == '__main__':
                     database_="neo4j"
                 )
 
-            result_data = '\n'
-            result_data += dp.format_capitalization_report(stats.records)
+            result_data = '\n' + dp.format_capitalization_report(stats.records)
             result_data += dp.print_probability_report(is_offline=True, top_n=5)
             open('results/output.txt', 'w', encoding='utf-8').write(result_data)
             logger.info('Статистика сохранена')
